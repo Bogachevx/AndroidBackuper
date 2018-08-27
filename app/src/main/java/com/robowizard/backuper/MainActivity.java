@@ -34,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String USB_SAVE = "USB_SAVE ";
     private static final String USB_SAVE_OPLOG = "USB_SAVE/OPLOG ";
     private static final String USB_SAVE_ELOG = "USB_SAVE/ELOG ";
+    private static final String ID = "ID ";
 
     private TextView statusLabel;
     private TextView consoleWindow;
@@ -133,32 +134,32 @@ public class MainActivity extends AppCompatActivity {
 
                     String tr = USB_FDEL + robotName + "\n";
                     port.write(tr.getBytes(), 5000);
-                    response[0] = readTo(">");
+                    response[0] = readTo(">", 0);
                     consoleWriteLine(response[0]);
 
                     tr = USB_MKDIR + robotName + "\n";
                     port.write(tr.getBytes(), 5000);
-                    response[0] = readTo(">");
+                    response[0] = readTo(">", 0);
                     consoleWriteLine("Saving main backup");
                     consoleWriteLine(response[0]);
 
                     tr = USB_SAVE + robotName + "\\" + date + "\n";
                     port.write(tr   .getBytes(), 5000);
-                    response[0] = readTo(">");
+                    response[0] = readTo(">", 0);
                     consoleWriteLine("Main backup saved!");
                     consoleWriteLine(response[0]);
                     consoleWriteLine("Saving operation log");
 
                     tr = USB_SAVE_OPLOG + robotName + "\\" + date + "\n";
                     port.write(tr.getBytes(), 5000);
-                    response[0] = readTo(">");
+                    response[0] = readTo(">", 0);
                     consoleWriteLine("Operation log saved!");
                     consoleWriteLine(response[0]);
                     consoleWriteLine("Saving error log");
 
                     tr = USB_SAVE_ELOG + robotName + "\\" + date + "\n";
                     port.write(tr.getBytes(), 5000);
-                    readTo(">");
+                    response[0] = readTo(">", 0);
                     consoleWriteLine("Error log saved!");
                     consoleWriteLine(response[0]);
                     consoleWriteLine("Backuped!");
@@ -191,10 +192,10 @@ public class MainActivity extends AppCompatActivity {
                 String[] response = new String[1];
                 try {
 
-                    String tr = "ID \n \n \n";
+                    String tr = ID + "\n \n \n";
                     port.write(tr.getBytes(), 5000);
-                    response[0] = readTo("\n");
-                    response[0] = readTo("\n");
+                    response[0] = readTo("\n", 0);
+                    response[0] = readTo("\n", 0);
 
                     tr = " \n \n \n";
                     port.write(tr.getBytes(), 5000);
@@ -238,20 +239,87 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     };
 
-    private String readTo(String to) {
+
+    private void checkConnection() {
+        try {
+            port.purgeHwBuffers(true,true);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        new Thread(new Runnable() {
+
+            public void run() {
+                String[] response = new String[1];
+                try {
+
+                    String tr = ID + "\n \n \n";
+                    port.write(tr.getBytes(), 5000);
+                    response[0] = readTo("\n", 0);
+                    response[0] = readTo("\n", 0);
+
+                    tr = " \n \n \n";
+                    port.write(tr.getBytes(), 5000);
+                    response[0] = response[0].replaceAll("[^a-zA-Z0-9 ]", "");
+                    String[] IDName = response[0].split(" ");
+                    ArrayList<String> splittedString = new ArrayList<String>();
+                    for (int i = 0; i < IDName.length; i++)
+                    {
+                        if (IDName[i].length() !=0)
+                        {
+                            splittedString.add(IDName[i]);
+                        }
+                    }
+                    String robotInfo = "";
+                    for(int i = 0; i < splittedString.size(); i++)
+                    {
+                        if (splittedString.get(i).contains("name"))
+                        {
+                            robotInfo += splittedString.get(i+1) + "_";
+                        }
+                        if (splittedString.get(i).contains("No"))
+                        {
+                            robotInfo += splittedString.get(i+1);
+                        }
+                    }
+                    final String finalRobotInfo = robotInfo;
+                    loadRobotNameSwitch.post(new Runnable() {
+                        public void run() {
+                            if (loadRobotNameSwitch.isChecked())
+                            {
+                                robotNameField.setText(finalRobotInfo);
+                            }
+                        }
+                    });
+
+                } catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+    private String readTo(String to, int timeout) {
 
         String ret = "";
         byte buffer[];
+        int i = 0;
         while (true) {
 
             String res = "";
             buffer = new byte[100];
             try {
-                port.read(buffer, 1000);
+                port.read(buffer, 100);
                 res = new String(buffer);
                 ret += res;
                 if (res.contains(to)) {
                     return ret;
+                }
+
+                if (i != 0 && i < timeout)
+                {
+                    return null;
                 }
 
             } catch (IOException e) {
